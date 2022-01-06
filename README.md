@@ -10,6 +10,12 @@ This repository is largely a derivative of the scripts contained within [whoenig
 
 I developed and tested these on Ubuntu 20.04 with Python 3.8 and macOS Monterey with Python 3.10. 
 
+### Dependencies
+
+```bash
+$ sudo pip3 install scipy matplotlib pandas numpy cfclient
+```
+
 ## Usage
 
 Clone the Git repository. Navigate into a directory of your choice and run:
