@@ -1,37 +1,11 @@
-# -*- coding: utf-8 -*-
-#
-# ,---------,       ____  _ __
-# |  ,-^-,  |      / __ )(_) /_______________ _____  ___
-# | (  O  ) |     / __  / / __/ ___/ ___/ __ `/_  / / _ \
-# | / ,--'  |    / /_/ / / /_/ /__/ /  / /_/ / / /_/  __/
-#    +------`   /_____/_/\__/\___/_/   \__,_/ /___/\___/
-#
-# Copyright (C) 2019 Bitcraze AB
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, in version 3.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
-"""
-Example of how to connect to a Qualisys QTM system and feed the position to a
-Crazyflie. It uses the high level commander to upload a trajectory to fly a
-figure 8.
-
-Set the uri to the radio settings of the Crazyflie and modify the
-rigid_body_name to match the name of the Crazyflie in QTM.
-"""
 import asyncio
 import math
+from sys import path
 import time
 import xml.etree.cElementTree as ET
 from threading import Thread
+import pandas as pd
+import argparse
 
 import qtm
 
@@ -44,33 +18,23 @@ from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie.syncLogger import SyncLogger
 from cflib.utils import uri_helper
 
-# URI to the Crazyflie to connect to
-uri = uri_helper.uri_from_env(default='radio://0/80/2M/E7E7E7E701')
+"""
+This code was adopted almost verbatim (with slight modifications) from the example at:
+https://github.com/bitcraze/crazyflie-lib-python/blob/master/examples/qualisys/qualisys_hl_commander.py
+"""
 
-# The name of the rigid body in QTM that represents the Crazyflie
-rigid_body_name = 'cf1'
+# Pre-set variables
+DEFAULT_URI = 'radio://0/80/2M/E7E7E7E701'
+
+# URI to the Crazyflie to connect to
+uri = uri_helper.uri_from_env(default=DEFAULT_URI)
 
 # True: send position and orientation; False: send position only
 send_full_pose = False
 
-# The trajectory to fly
-# See https://github.com/whoenig/uav_trajectories for a tool to generate
-# trajectories
-
-# Duration,x^0,x^1,x^2,x^3,x^4,x^5,x^6,x^7,y^0,y^1,y^2,y^3,y^4,y^5,y^6,y^7,z^0,z^1,z^2,z^3,z^4,z^5,z^6,z^7,yaw^0,yaw^1,yaw^2,yaw^3,yaw^4,yaw^5,yaw^6,yaw^7
-figure8 = [
-    [1.050000, 0.000000, -0.000000, 0.000000, -0.000000, 0.830443, -0.276140, -0.384219, 0.180493, -0.000000, 0.000000, -0.000000, 0.000000, -1.356107, 0.688430, 0.587426, -0.329106, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.710000, 0.396058, 0.918033, 0.128965, -0.773546, 0.339704, 0.034310, -0.026417, -0.030049, -0.445604, -0.684403, 0.888433, 1.493630, -1.361618, -0.139316, 0.158875, 0.095799, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.620000, 0.922409, 0.405715, -0.582968, -0.092188, -0.114670, 0.101046, 0.075834, -0.037926, -0.291165, 0.967514, 0.421451, -1.086348, 0.545211, 0.030109, -0.050046, -0.068177, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.700000, 0.923174, -0.431533, -0.682975, 0.177173, 0.319468, -0.043852, -0.111269, 0.023166, 0.289869, 0.724722, -0.512011, -0.209623, -0.218710, 0.108797, 0.128756, -0.055461, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.560000, 0.405364, -0.834716, 0.158939, 0.288175, -0.373738, -0.054995, 0.036090, 0.078627, 0.450742, -0.385534, -0.954089, 0.128288, 0.442620, 0.055630, -0.060142, -0.076163, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.560000, 0.001062, -0.646270, -0.012560, -0.324065, 0.125327, 0.119738, 0.034567, -0.063130, 0.001593, -1.031457, 0.015159, 0.820816, -0.152665, -0.130729, -0.045679, 0.080444, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.700000, -0.402804, -0.820508, -0.132914, 0.236278, 0.235164, -0.053551, -0.088687, 0.031253, -0.449354, -0.411507, 0.902946, 0.185335, -0.239125, -0.041696, 0.016857, 0.016709, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.620000, -0.921641, -0.464596, 0.661875, 0.286582, -0.228921, -0.051987, 0.004669, 0.038463, -0.292459, 0.777682, 0.565788, -0.432472, -0.060568, -0.082048, -0.009439, 0.041158, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [0.710000, -0.923935, 0.447832, 0.627381, -0.259808, -0.042325, -0.032258, 0.001420, 0.005294, 0.288570, 0.873350, -0.515586, -0.730207, -0.026023, 0.288755, 0.215678, -0.148061, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-    [1.053185, -0.398611, 0.850510, -0.144007, -0.485368, -0.079781, 0.176330, 0.234482, -0.153567, 0.447039, -0.532729, -0.855023, 0.878509, 0.775168, -0.391051, -0.713519, 0.391628, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],  # noqa
-]
-
+def import_path(path_to_file):
+    f = pd.read_csv(path_to_file)
+    return f.values.tolist()
 
 class QtmWrapper(Thread):
     def __init__(self, body_name):
@@ -98,8 +62,8 @@ class QtmWrapper(Thread):
         await self._close()
 
     async def _connect(self):
-        qtm_instance = await self._discover()
-        host = qtm_instance.host
+        #qtm_instance = await self._discover()
+        host = args.qtm_ip
         print('Connecting to QTM on ' + host)
         self.connection = await qtm.connect(host)
 
@@ -112,10 +76,6 @@ class QtmWrapper(Thread):
             components=['6D'],
             on_packet=self._on_packet)
 
-    async def _discover(self):
-        async for qtm_instance in qtm.Discover('0.0.0.0'):
-            return qtm_instance
-
     def _on_packet(self, packet):
         header, bodies = packet.get_6d()
 
@@ -125,6 +85,7 @@ class QtmWrapper(Thread):
         if self.body_name not in self.qtm_6DoF_labels:
             print('Body ' + self.body_name + ' not found.')
         else:
+            print("Receiving packets...")
             index = self.qtm_6DoF_labels.index(self.body_name)
             temp_cf_pos = bodies[index]
             x = temp_cf_pos[0][0] / 1000
@@ -294,6 +255,15 @@ def run_sequence(cf, trajectory_id, duration):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('trajectory', type=str, required=True)
+    parser.add_argument('rigid_body_name', type=str, required=True)
+    parser.add_argument('qtm_ip', type=str, required=True)
+    args = parser.parse_args()
+
+    figure = import_path(args.trajectory)
+    rigid_body_name = args.rigid_body_name
+
     cflib.crtp.init_drivers()
 
     # Connect to QTM
@@ -310,7 +280,7 @@ if __name__ == '__main__':
         activate_kalman_estimator(cf)
         activate_high_level_commander(cf)
         # activate_mellinger_controller(cf)
-        duration = upload_trajectory(cf, trajectory_id, figure8)
+        duration = upload_trajectory(cf, trajectory_id, figure)
         print('The sequence is {:.1f} seconds long'.format(duration))
         reset_estimator(cf)
         run_sequence(cf, trajectory_id, duration)
