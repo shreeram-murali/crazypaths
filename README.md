@@ -18,7 +18,7 @@ $ sudo pip3 install scipy matplotlib pandas numpy cfclient
 
 ## Usage
 
-Clone the Git repository. Navigate into a directory of your choice and run:
+Clone the Git repository. To do so, navigate into a directory of your choice and run:
 
 ```bash
 git clone https://github.com/shreeram-murali/crazypaths.git
@@ -78,7 +78,7 @@ max roll (deg):  7.029917967616536
 max pitch (deg):  3.094890561377085
 ```
 
-The screenshot of the plot:
+Screenshot of the plot:
 
 ![screenshot](imgs/screenshot.png)
 
