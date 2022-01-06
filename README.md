@@ -58,6 +58,30 @@ In order for this to work properly, one must:
 
 3. Make sure 6DOF tracking is enabled in *project options*
 
+## Example
+
+```bash
+python3 trajectory_scripts/generate_trajectory.py paths/circle_waypoints.csv paths/circle_polynomial_2.csv
+
+0.0003152763976201386
+0.011047588610698116
+1.6705698923561263e-06
+```
+
+```bash
+python3 trajectory_scripts/plot_trajectory.py paths/circle_polynomial_2.csv 
+
+max speed (m/s):  0.47347308702566904
+max acceleration (m/s^2):  1.3208665682570173
+max omega (rad/s):  1.5487862531350483
+max roll (deg):  7.029917967616536
+max pitch (deg):  3.094890561377085
+```
+
+The screenshot of the plot:
+
+![screenshot](imgs/screenshot.png)
+
 ## References
 
 C. Richter, A. Bry, and N. Roy, “**Polynomial trajectory planning for aggressive quadrotor flight in dense indoor environments,**” in *International Journal of Robotics Research*, Springer, 2016.
